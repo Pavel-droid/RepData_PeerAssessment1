@@ -6,20 +6,131 @@ output:
 ---
 
 
+```{r, echo=TRUE}
+library(tidyverse)
+library(skimr)
+library(knitr)
+library(rmarkdown)
+
+```
+
+
 ## Loading and preprocessing the data
 
+```{r, echo=TRUE}
+df <- read_csv(unzip("activity.zip", "activity.csv"))
+
+```
 
 
 ## What is mean total number of steps taken per day?
+```{r}
+# removing NA, grouping data set by dates and calculating sum for each day
+steps_day_sum <- df %>% drop_na() %>% group_by(date) %>% summarise("steps_sum"=sum(steps))
+
+# histogram of daily sums
+ggplot(steps_day_sum) +
+  geom_histogram(aes(steps_sum))
+
+# calculating mean and median value of daily steps sum
+steps_day_sum %>% summarise(steps_mean = mean(steps_sum), steps_median = median(steps_sum))
+
+```
 
 
 
 ## What is the average daily activity pattern?
+```{r}
+# removing NA, grouping by 5 minutes intervals and calculating average for each interval
+steps_interval_average <- df %>% drop_na() %>% group_by(interval) %>% summarise(steps_average = mean(steps))
+
+# timeline chart of interval average values, in general it shows average daily activity
+ggplot(steps_interval_average) +
+  geom_line(aes(x = interval, y = steps_average))
+
+# looking for an interval with max mean value of steps
+steps_interval_average[which.max(steps_interval_average$steps_average),1]
+
+
+```
 
 
 
 ## Imputing missing values
+```{r}
+
+# analysing amount of NA in data set
+total_NA <- sum(is.na(df))
+total_NA
+
+# preparation for a loop which will replace NAs in steps by average value for corresponding interval
+replaced_NA <-0
+loop_cycles <-0
+df_corr <- df
+rows <- nrow(df_corr)
+na_to_replace <-sum(is.na(df_corr))
+
+# replacing NA steps by corresponding average of interval
+for (i in 1:rows) {
+  loop_cycles <- loop_cycles+1
+  
+  if (is.na(df_corr[i,1])) {
+    corresponding_interval <- filter(steps_interval_average, interval==as.numeric(df_corr[i,3]))
+    
+    df_corr[i,1] <- corresponding_interval[1,2]
+    replaced_NA <- replaced_NA+1
+    
+    }
+}
+
+# checking if loop replaced all NA values
+sum(is.na(df_corr))
+
+# grouping data set by dates and calculating sum for each day
+steps_day_sum_2 <- df_corr %>% group_by(date) %>% summarise("steps_sum"=sum(steps))
+
+# histogram of daily sums
+ggplot(steps_day_sum_2) +
+  geom_histogram(aes(steps_sum))
+
+# calculating mean and median value of daily steps sum
+steps_day_sum_2 %>% summarise(steps_mean = mean(steps_sum), steps_median = median(steps_sum))
+
+```
 
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+df_final <- df_corr
+# creating additional column with days
+df_final <- df_final %>% mutate(day_factor=weekdays(date))
+
+# renaming to corresponding factor level
+df_final$day_factor[df_final$day_factor=="pondělí"] <- "weekday"
+df_final$day_factor[df_final$day_factor=="úterý"] <- "weekday"
+df_final$day_factor[df_final$day_factor=="středa"] <- "weekday"
+df_final$day_factor[df_final$day_factor=="čtvrtek"] <- "weekday"
+df_final$day_factor[df_final$day_factor=="pátek"] <- "weekday"
+df_final$day_factor[df_final$day_factor=="sobota"] <- "weekend"
+df_final$day_factor[df_final$day_factor=="neděle"] <- "weekend"
+
+# changing format to factor
+df_final$day_factor <- as.factor(df_final$day_factor)
+
+# grouping by intervals and day factors and calculating average steps
+by_gr <- df_final %>% group_by(day_factor, interval)
+gr<- by_gr %>% summarise(mean_steps = mean(steps))
+
+
+# timeline charts of interval average values, comparing working days with weekend days
+ggplot(gr) +
+  geom_line(aes(x = interval, y = mean_steps)) +
+  facet_grid(day_factor~.)
+
+
+```
+
+
+
+
